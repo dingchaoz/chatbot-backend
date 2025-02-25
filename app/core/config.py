@@ -84,7 +84,7 @@ class Settings(BaseSettings):
 
     TOKENIZERS_PARALLELISM: bool = False
 
-    HUGGING_FACE_EMBEDDING_MODEL_NAME: str = "BAAI/bge-small-en-v1.5"
+    HUGGING_FACE_EMBEDDING_MODEL_NAME: str = "dmis-lab/biobert-v1.1"
 
     PDF_FILE_PATH: str = None
 
