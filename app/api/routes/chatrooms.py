@@ -142,8 +142,7 @@ async def chat_in_chatroom(
                         # Yield the chunk as SSE data
                         yield f"data: {json.dumps({'type': 'message', 'content': chunk})}\n\n"
                         # Process the chunk as in your example
-                        cleaned_chunk = chunk.replace("data: ", "").replace("\n\n", "").replace("[DONE]", "")
-                        full_response += cleaned_chunk
+                        full_response += chunk
 
                 # Collect unique source nodes from this chunk
                 for node in response.source_nodes:
@@ -165,11 +164,11 @@ async def chat_in_chatroom(
             # Combine all unique referenced context parts
             referenced_context = "\n".join(referenced_context_parts)
             # Print the formatted referenced context
-            full_response+=referenced_context
             print(f"Referenced Context:\n{referenced_context}")
             # Yield the referenced context
-            yield f"data: {json.dumps({'referenced_context': referenced_context})}\n\n"
+            yield f"data: {json.dumps({'type': 'referenced_context', 'content': referenced_context})}\n\n"
 
+            full_response += referenced_context
             user_message = crud.create_message(
                 session=session,
                 sender=MessageSenderEnum.USER,
