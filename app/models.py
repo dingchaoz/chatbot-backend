@@ -10,6 +10,8 @@ class BaseSQLModel(SQLModel):
 
 class Chatroom(BaseSQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
+    title: Optional[str] = Field(default=None)
+    description: Optional[str] = Field(default=None)
     messages: list["Message"] = Relationship(back_populates="chatroom")
 
 class Message(BaseSQLModel, table=True):
@@ -18,14 +20,13 @@ class Message(BaseSQLModel, table=True):
     content: str
     chatroom_id: int = Field(foreign_key="chatroom.id")
     previous_message_id: Optional[int] = Field(default=None, foreign_key="message.id")
-    chatroom: Chatroom = Relationship(back_populates="messages")
-    comment: Optional["MessageComment"] = Relationship(back_populates="message")
+    execution_time: Optional[int] = Field(default=None)
+    comment_reaction: Optional[str] = Field(default=None)
+    comment_content: Optional[str] = Field(default=None)
 
-class MessageComment(BaseSQLModel, table=True):
-    __tablename__ = "message_comment"
-    id: Optional[int] = Field(default=None, primary_key=True)
-    chatroom_id: int = Field(foreign_key="chatroom.id")
-    message_id: int = Field(foreign_key="message.id")
-    reaction: str
-    content: str
-    message: Optional["Message"] = Relationship(back_populates="comment")
+    chatroom: Chatroom = Relationship(back_populates="messages")
+    # previous_message: Optional["Message"] = Relationship(sa_relationship_kwargs={"remote_side": "Message.id"})
+    previous_message: Optional["Message"] = Relationship(
+        sa_relationship_kwargs=dict(remote_side = "Message.id")
+    )
+    next_message: list["Message"] = Relationship(back_populates='previous_message')

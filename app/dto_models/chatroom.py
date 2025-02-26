@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -10,6 +11,6 @@ class MessageCommentReactionEnum(str, Enum):
     LIKE = "LIKE"
     DISLIKE = "DISLIKE"
 
-class MessageCommentUpsertRequest(BaseModel):
-  reaction: MessageCommentReactionEnum
-  content: str
+class MessageCommentUpdateRequest(BaseModel):
+  comment_reaction: Optional[MessageCommentReactionEnum] = None
+  comment_content: Optional[str] = None

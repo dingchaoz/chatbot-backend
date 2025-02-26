@@ -15,14 +15,14 @@ from llama_index.core import (
 )
 from llama_index.llms.deepseek import DeepSeek
 from app import crud
-from app.dto_models.chatroom import MessageCommentUpsertRequest, MessageSenderEnum
+from app.dto_models.chatroom import MessageCommentUpdateRequest, MessageSenderEnum
 from app.utils import get_pagination_info
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 import json
 import logging
-
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -39,8 +39,8 @@ async def get_chatrooms(
     limit: int = Query(10, le=100),
     offset: int = Query(0, ge=0),
 ) -> Any:
-    """Retrieve all chatrooms."""
-    result = crud.get_all_chatrooms(session=session, limit=limit, offset=offset)
+    """Retrieve chatrooms."""
+    result = crud.get_chatrooms(session=session, limit=limit, offset=offset)
     chatrooms = result["chatrooms"]
     total = result["total"]
 
@@ -66,38 +66,43 @@ async def create_chatroom(
     return {"chatroom": new_chatroom}
 
 @router.get("/chatrooms/messages/comments")
-async def get_messages_with_comments(
+async def get_messages(
     *,
     session: SessionDep,
+    limit: int = Query(10, le=100),
+    offset: int = Query(0, ge=0),
 ) -> Any:
-    """Retrieve all messages that have comments."""
-    messages_with_comments = crud.get_messages_with_comments(session=session)
-    return {"data": messages_with_comments}
+    """Retrieve messages with comment."""
+    result = crud.get_messages_with_comment(session=session, limit=limit, offset=offset)
+    messages = result["messages"]
+    total = result["total"]
+
+    pagination_info = get_pagination_info(total, limit, offset)
+    response = {
+        "data": messages,
+        "pagination": {
+            "count": len(messages),
+            "total": total,
+            **pagination_info
+        }
+    }
+
+    return response
 
 @router.post("/chatrooms/messages/{message_id}/comments")
 async def upsert_comment(
     *,
     session: SessionDep,
     message_id: int,
-    request_in: MessageCommentUpsertRequest,
+    request_in: MessageCommentUpdateRequest,
 ) -> Any:
-    """Add or update a comment for a specified message if the sender is 'ASSISTANT'."""
+    """Update a message comment if the sender is 'ASSISTANT'."""
     message = crud.get_message(session=session, id=message_id)
     if not message or message.sender != MessageSenderEnum.ASSISTANT:
         return {"error": "Message not found."}
 
-    result = crud.upsert_message_comment(session=session, chatroom_id=message.chatroom_id, message_id=message_id, reaction=request_in.reaction, content=request_in.content)
+    crud.update_message_comment(session=session, message_id=message_id, comment_reaction=request_in.comment_reaction, comment_content=request_in.comment_content)
     return {"message": "Comment success."}
-
-@router.delete("/chatrooms/messages/{message_id}/comments")
-async def delete_comment(
-    *,
-    session: SessionDep,
-    message_id: int
-) -> Any:
-    """Delete the comment for a specified message if the sender is 'ASSISTANT'."""
-    result = crud.delete_comment_by_message_id(session=session, message_id=message_id)
-    return result
 
 @router.post("/chatrooms/{chatroom_id}/chat")
 async def chat_in_chatroom(
@@ -107,10 +112,12 @@ async def chat_in_chatroom(
     request_in: TestRequest,
     request: Request
 ) -> Any:
+    
     chatroom = crud.get_chatroom(session=session, id=chatroom_id)
     if not chatroom:
         return {"error": "Chatroom not found."}
     
+    start_time = time.time() 
     try: 
         # Use pre-initialized retriever, synthesizer, and query engine
         retriever = request.app.state.retriever
@@ -159,14 +166,16 @@ async def chat_in_chatroom(
                 yield f"data: {json.dumps({'type': 'done', 'content': 'An unexpected error occurred'})}\n\n"
                 return
 
+            execution_time = time.time() - start_time
+
             # Print the full response (for debugging or logging)
             print(full_response)
             # Combine all unique referenced context parts
-            referenced_context = "\n".join(referenced_context_parts)
+            referenced_context = "\n\nreferenced context:\n" + "\n".join(referenced_context_parts)
             # Print the formatted referenced context
             print(f"Referenced Context:\n{referenced_context}")
             # Yield the referenced context
-            yield f"data: {json.dumps({'type': 'referenced_context', 'content': referenced_context})}\n\n"
+            yield f"data: {json.dumps({'type': 'message', 'content': referenced_context})}\n\n"
 
             full_response += referenced_context
             user_message = crud.create_message(
@@ -180,8 +189,17 @@ async def chat_in_chatroom(
                 sender=MessageSenderEnum.ASSISTANT,
                 content=full_response,
                 chatroom_id=chatroom_id,
-                previous_message_id=user_message.id
+                previous_message_id=user_message.id,
+                execution_time=execution_time
             )
+            if not chatroom.title:
+                description = (full_response.replace("\n", " "))[:100]
+                crud.update_chatroom_comment(
+                    session=session,
+                    chatroom_id=chatroom_id,
+                    title=request_in.message,
+                    description=description
+                )
 
             # Signal completion
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
