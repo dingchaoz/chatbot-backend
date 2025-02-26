@@ -4,11 +4,7 @@ from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 import json
 import logging
-from llama_index.core.query_engine import RetrieverQueryEngine
-from llama_index.core.retrievers import VectorIndexRetriever
-from llama_index.core.response_synthesizers import get_response_synthesizer
-from llama_index.core.postprocessor import SimilarityPostprocessor
-from llama_index.core.prompts import PromptTemplate
+
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -21,47 +17,15 @@ class TestRequest(BaseModel):
 @router.post("/chatrooms/test")
 async def test(request: Request, request_in: TestRequest) -> Any:
     try: 
-        index = request.app.state.index
-        llm = request.app.state.llm
-        # memory = ChatMemoryBuffer(token_limit=1500)
-
-        # Configure retriever with similarity_top_k = 5
-        retriever = VectorIndexRetriever(
-            index=index,
-            similarity_top_k=5,
-        )
+        # Use pre-initialized retriever, synthesizer, and query engine
+        retriever = request.app.state.retriever
+        query_engine = request.app.state.query_engine
 
         # Retrieve relevant information
         retrieved_docs = retriever.retrieve(request_in.message)
 
         # Extract the text from the retrieved documents
         context = " ".join([doc.text for doc in retrieved_docs])
-
-        # Define a custom QA prompt template
-        qa_prompt_tmpl = (
-            "You are a helpful assistant. Below is some context retrieved from documents, followed by the chat history. "
-            "Please respond to the user's message using the provided context. Format your response as bullet points, "
-            "and after each statement, reference the original sentence from the context that supports it by saying (Ref: sentence).\n\n"
-            "Context:\n"
-            "---------------------\n"
-            "{context_str}\n"
-            "---------------------\n"
-            "Given the context information and not prior knowledge, "
-            "answer the query.\n"
-            "Query: {query_str}\n"
-            "Answer: "
-        )
-        qa_prompt = PromptTemplate(qa_prompt_tmpl)
-
-        # Configure response synthesizer with LLM
-        response_synthesizer = get_response_synthesizer(llm=llm,streaming=True,text_qa_template=qa_prompt)
-
-        # Assemble query engine
-        query_engine = RetrieverQueryEngine(
-            retriever=retriever,
-            response_synthesizer=response_synthesizer,
-            node_postprocessors=[SimilarityPostprocessor(similarity_cutoff=0.7)],
-        )
 
         # Use the query engine to process the request with context
         response = query_engine.query(
