@@ -1,4 +1,5 @@
 from math import ceil
+from typing import List
 
 def get_pagination_info(total: int, limit: int, offset: int):
     """
@@ -12,3 +13,7 @@ def get_pagination_info(total: int, limit: int, offset: int):
     page = (offset // limit) + 1
     page_count = ceil(total / limit)
     return {"page": page, "pageCount": page_count}
+
+def to_dict(obj, exclude_fields: List[str] = []):
+    return {c.name: getattr(obj, c.name) for c in obj.__table__.columns if c.name not in exclude_fields}
+

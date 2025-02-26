@@ -19,14 +19,17 @@ class Message(BaseSQLModel, table=True):
     sender: str
     content: str
     chatroom_id: int = Field(foreign_key="chatroom.id")
-    previous_message_id: Optional[int] = Field(default=None, foreign_key="message.id")
+    previous_message_id: Optional[int] = Field(
+        default=None,
+        foreign_key="message.id",
+        sa_column_kwargs={"unique": True}
+    )
     execution_time: Optional[int] = Field(default=None)
     comment_reaction: Optional[str] = Field(default=None)
     comment_content: Optional[str] = Field(default=None)
 
     chatroom: Chatroom = Relationship(back_populates="messages")
-    # previous_message: Optional["Message"] = Relationship(sa_relationship_kwargs={"remote_side": "Message.id"})
+
     previous_message: Optional["Message"] = Relationship(
-        sa_relationship_kwargs=dict(remote_side = "Message.id")
+        sa_relationship_kwargs={"remote_side": "Message.id", "uselist": False}
     )
-    next_message: list["Message"] = Relationship(back_populates='previous_message')

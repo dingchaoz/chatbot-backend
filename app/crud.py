@@ -4,6 +4,8 @@ from app.dto_models.chatroom import MessageSenderEnum
 from app.models import Chatroom, Message
 from sqlalchemy.orm import selectinload, aliased, joinedload
 
+from app.utils import to_dict
+
 def get_chatrooms(*, session: Session, limit: int, offset: int):
     """Retrieve chatrooms."""
     chatrooms = session.exec(
@@ -103,22 +105,25 @@ def update_message_comment(*, session: Session, message_id: int, comment_reactio
 
 def get_messages_with_comment(*, session: Session, limit: int, offset: int):
     """Retrieve messages with comment."""
-    PreviousMessage = aliased(Message)
-    messages = session.exec(
+    raw_messages = session.exec(
         select(Message)
-        # .join(PreviousMessage, Message.previous_message_id == PreviousMessage.id, isouter=True)  # Join on previous_message_id
-        # .options(selectinload(Message.previous_message))
-        .options(selectinload(Message.next_message))
-        # .options(joinedload(Message.previous_message))
-        # .join(Message.previous_message)
+        .options(joinedload(Message.previous_message))
         .where(
             (Message.comment_reaction.isnot(None)) | 
             (Message.comment_content.isnot(None))
         )
         .order_by(desc(Message.created_at))
-        # .limit(limit)
-        # .offset(offset)
+        .limit(limit)
+        .offset(offset)
     ).all()
+
+    messages = [
+        {
+            **to_dict(message),
+            "previous_message": to_dict(message.previous_message),
+        }
+        for message in raw_messages
+    ]
 
     total_count = session.exec(
         select(func.count())
