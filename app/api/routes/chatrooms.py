@@ -32,7 +32,7 @@ router = APIRouter(prefix="/chatrooms", tags=["chatrooms"])
 class TestRequest(BaseModel):
     message: str
 
-@router.get("/chatrooms")
+@router.get("")
 async def get_chatrooms(
     *,
     session: SessionDep,
@@ -56,7 +56,7 @@ async def get_chatrooms(
     
     return response
 
-@router.post("/chatrooms")
+@router.post("")
 async def create_chatroom(
     *,
     session: SessionDep,
@@ -65,7 +65,7 @@ async def create_chatroom(
     new_chatroom = crud.create_chatroom(session=session)
     return {"chatroom": new_chatroom}
 
-@router.get("/chatrooms/messages/comments")
+@router.get("/messages/comments")
 async def get_messages(
     *,
     session: SessionDep,
@@ -89,7 +89,7 @@ async def get_messages(
 
     return response
 
-@router.post("/chatrooms/messages/{message_id}/comments")
+@router.post("/messages/{message_id}/comments")
 async def upsert_comment(
     *,
     session: SessionDep,
@@ -104,7 +104,7 @@ async def upsert_comment(
     crud.update_message_comment(session=session, message_id=message_id, comment_reaction=request_in.comment_reaction, comment_content=request_in.comment_content)
     return {"message": "Comment success."}
 
-@router.post("/chatrooms/{chatroom_id}/chat")
+@router.post("/{chatroom_id}/chat")
 async def chat_in_chatroom(
     *,
     session: SessionDep,
@@ -212,7 +212,7 @@ async def chat_in_chatroom(
             (f"data: {json.dumps({'type': 'error', 'content': 'An unexpected error occurred'})}\n\n" for _ in range(1)),
             media_type="text/event-stream")
 
-@router.delete("/chatrooms/{chatroom_id}")
+@router.delete("/{chatroom_id}")
 async def delete_chatroom(
     *,
     session: SessionDep,
@@ -222,7 +222,7 @@ async def delete_chatroom(
     crud.delete_chatroom(session=session, chatroom_id=chatroom_id)
     return {"message": "Chatroom deleted."}
 
-@router.get("/chatrooms/{chatroom_id}/messages")
+@router.get("/{chatroom_id}/messages")
 async def get_messages_by_chatroom(
     *,
     session: SessionDep,
