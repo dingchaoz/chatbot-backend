@@ -193,11 +193,12 @@ async def chat_in_chatroom(
                 execution_time=execution_time
             )
             if not chatroom.title:
+                title = request_in.message[:100]
                 description = (full_response.replace("\n", " "))[:100]
                 crud.update_chatroom_comment(
                     session=session,
                     chatroom_id=chatroom_id,
-                    title=request_in.message,
+                    title=title,
                     description=description
                 )
 
