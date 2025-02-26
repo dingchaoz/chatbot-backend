@@ -17,6 +17,15 @@ from llama_index.llms.deepseek import DeepSeek
 from app import crud
 from app.dto_models.chatroom import MessageCommentUpsertRequest, MessageSenderEnum
 from app.utils import get_pagination_info
+from fastapi import APIRouter, Request
+from pydantic import BaseModel
+from fastapi.responses import StreamingResponse
+import json
+import logging
+
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
 
 router = APIRouter(prefix="/chatrooms", tags=["chatrooms"])
 
@@ -95,67 +104,96 @@ async def chat_in_chatroom(
     *,
     session: SessionDep,
     chatroom_id: int,
-    request_in: TestRequest
+    request_in: TestRequest,
+    request: Request
 ) -> Any:
     chatroom = crud.get_chatroom(session=session, id=chatroom_id)
     if not chatroom:
         return {"error": "Chatroom not found."}
     
-    llm = DeepSeek(
-        model=settings.DEEPSEEK_MODEL_NAME,
-        api_key=settings.DEEPSEEK_API_KEY,
-        api_base=settings.DEEPSEEK_API_BASE
-    )
-    LlamaSettings.embed_model = HuggingFaceEmbedding(
-        model_name=settings.HUGGING_FACE_EMBEDDING_MODEL_NAME
-    )
+    try: 
+        # Use pre-initialized retriever, synthesizer, and query engine
+        retriever = request.app.state.retriever
+        query_engine = request.app.state.query_engine
 
-    reader = SimpleDirectoryReader(input_files=[settings.PDF_FILE_PATH])
-    data = reader.load_data()
+        # Retrieve relevant information
+        retrieved_docs = retriever.retrieve(request_in.message)
 
-    index = VectorStoreIndex.from_documents(documents=data, show_progress=True)
+        # Extract the text from the retrieved documents
+        context = " ".join([doc.text for doc in retrieved_docs])
 
-    query_engine = index.as_query_engine(llm=llm, streaming=True, similarity_top_k=3)
-    response = query_engine.query(
-        f"{request_in.message}"
-        "Show statements in bullet form and show page reference after each statement. And add a reference to the original sentence under each statement"
-    )
-
-    async def generate_response():
-        full_response = ""
-        try:
-            for chunk in response.response_gen:
-                if chunk:
-                    yield f"data: {json.dumps({'type': 'message', 'content': chunk})}\n\n"
-
-                    clean_chunk = (
-                        chunk
-                        .replace("data: ", "")
-                        .replace("\n\n", "")
-                        .replace("[DONE]", "")
-                    )
-
-                    full_response += clean_chunk
-        except Exception as e:
-            yield f"data: {json.dumps({'type': 'error', 'content': 'An unexpected error occurred. Please try again later.'})}\n\n"
-            return
-
-        user_message = crud.create_message(
-            session=session,
-            sender=MessageSenderEnum.USER,
-            content=request_in.message,
-            chatroom_id=chatroom_id,
+        # Use the query engine to process the request with context
+        response = query_engine.query(
+            f"""{request_in.message}
+            Context: {context}
+            """
         )
-        crud.create_message(
-            session=session,
-            sender=MessageSenderEnum.ASSISTANT,
-            content=full_response,
-            chatroom_id=chatroom_id,
-            previous_message_id=user_message.id
-        )
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
-    return StreamingResponse(generate_response(), media_type="text/event-stream")
+        async def generate_response():
+            full_response = ""
+            # Collect source nodes to ensure uniqueness
+            seen_node_ids = []
+            referenced_context_parts = []
+
+            try:
+                # Iterate over the generator from response
+                for chunk in response.response_gen:
+                    if chunk:
+                        # Yield the chunk as SSE data
+                        yield f"data: {json.dumps({'type': 'message', 'content': chunk})}\n\n"
+                        # Process the chunk as in your example
+                        cleaned_chunk = chunk.replace("data: ", "").replace("\n\n", "").replace("[DONE]", "")
+                        full_response += cleaned_chunk
+
+                # Collect unique source nodes from this chunk
+                for node in response.source_nodes:
+                    logging.debug(f"Processing node: {node}")
+                    if node.node.node_id not in seen_node_ids:
+                        text = node.node.text.replace("\n", " ")
+                        seen_node_ids.append(node.node.node_id)
+                        index = seen_node_ids.index(node.node.node_id) + 1  # 1-based index
+                        referenced_context_parts.append(f"{index}: {text}")
+
+
+            except Exception as e:
+                logging.error(f"Error during response generation: {e}")
+                yield f"data: {json.dumps({'type': 'done', 'content': 'An unexpected error occurred'})}\n\n"
+                return
+
+            # Print the full response (for debugging or logging)
+            print(full_response)
+            # Combine all unique referenced context parts
+            referenced_context = "\n".join(referenced_context_parts)
+            # Print the formatted referenced context
+            full_response+=referenced_context
+            print(f"Referenced Context:\n{referenced_context}")
+            # Yield the referenced context
+            yield f"data: {json.dumps({'referenced_context': referenced_context})}\n\n"
+
+            user_message = crud.create_message(
+                session=session,
+                sender=MessageSenderEnum.USER,
+                content=request_in.message,
+                chatroom_id=chatroom_id,
+            )
+            crud.create_message(
+                session=session,
+                sender=MessageSenderEnum.ASSISTANT,
+                content=full_response,
+                chatroom_id=chatroom_id,
+                previous_message_id=user_message.id
+            )
+
+            # Signal completion
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+        return StreamingResponse(generate_response(), media_type="text/event-stream")
+
+    except Exception as e:
+        logging.error(f"Error in process_query: {e}")
+        return StreamingResponse(
+            (f"data: {json.dumps({'type': 'error', 'content': 'An unexpected error occurred'})}\n\n" for _ in range(1)),
+            media_type="text/event-stream")
 
 @router.delete("/chatrooms/{chatroom_id}")
 async def delete_chatroom(
