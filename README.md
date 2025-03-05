@@ -1,5 +1,8 @@
 # Humana Chatbot Tech Document
 
+![Alt text](./diagrams/front-end.png)
+![Alt text](./diagrams/api.png)
+
 #### By: Dingchao Zhang
 
 This technical documentation provides a comprehensive overview of the preprocessing, dataset generation, evaluation, and implementation processes used in the humana healthcare project. The primary objective is to build a robust Retrieval-Augmented Generation (RAG) system and an efficient vector database for information retrieval based on the paper.
@@ -97,6 +100,8 @@ Go to http://localhost:5173/dashboard to see online feedback
 ![Alt text](./diagrams/eval-dashboard.png)
 
 # Chatbot Healthcare Project: Technical Documentation
+
+![Alt text](./diagrams/overall-arch.png)
 
 ## Preprocessing: Data Preparation
 
