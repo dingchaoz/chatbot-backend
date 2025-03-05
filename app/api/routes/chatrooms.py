@@ -2,18 +2,10 @@ from typing import Any
 from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
-from llama_index.core import Settings as LlamaSettings
 from app.api.deps import SessionDep
-from app.core.config import settings
 
-from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from fastapi.responses import StreamingResponse
 import json
-from llama_index.core import (
-    SimpleDirectoryReader,
-    VectorStoreIndex,
-)
-from llama_index.llms.deepseek import DeepSeek
 from app import crud
 from app.dto_models.chatroom import MessageCommentUpdateRequest, MessageSenderEnum
 from app.utils import get_pagination_info

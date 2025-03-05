@@ -4,31 +4,10 @@ from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.core.node_parser import SemanticSplitterNodeParser
 from llama_index.core.base.embeddings.base import BaseEmbedding
 from app.core.config import settings
+from app.utils import clean_text
 import pickle
 import os
-import re
 
-
-def clean_text(text):
-    """
-    Clean the extracted text by removing headers, page numbers, and references.
-    """
-    # Remove headers like "BIOM 255 (Leffert) - Discussion Feb. 1, 2007"
-    text = re.sub(r'BIOM 255 \(Leffert\) - Discussion Feb\. 1, 2007', '', text)
-    
-    # Remove page numbers (e.g., "Page 1 of 10" if present)
-    text = re.sub(r'Page \d+ of \d+', '', text)
-    
-    # Remove lines that are entirely in uppercase (likely headers)
-    text = re.sub(r'^[A-Z\s]+$', '', text, flags=re.MULTILINE)
-    
-    # Remove references section (heuristic: starts with "REFERENCES AND NOTES")
-    text = re.split(r'\nREFERENCES AND NOTES\n', text)[0]
-    
-    # Remove extra whitespace and empty lines
-    text = re.sub(r'\n+', '\n', text).strip()
-    
-    return text
 
 def preprocess_data():
     llm = DeepSeek(
@@ -71,12 +50,15 @@ def preprocess_data():
     artifacts_dir = os.path.join(os.path.dirname(__file__), 'artifacts')
     os.makedirs(artifacts_dir, exist_ok=True)
 
-    # Save the index and llm objects to the artifacts directory
+    # Save the index, nodes and llm objects to the artifacts directory
     with open(os.path.join(artifacts_dir, "index.pkl"), "wb") as f:
         pickle.dump(index, f)
 
     with open(os.path.join(artifacts_dir, "llm.pkl"), "wb") as f:
         pickle.dump(llm, f)
+
+    with open(os.path.join(artifacts_dir, "nodes.pkl"), "wb") as f:
+        pickle.dump(nodes, f)
 
 if __name__ == "__main__":
     preprocess_data()
