@@ -86,7 +86,7 @@ Then ask question
 Get response in streaming
 ![Alt text](./diagrams/streaming-response.png)
 
-Then clone this repo, follow the readme to use pnpm for installation, then go to http://localhost:5173/chat
+Then clone this repo https://github.com/dingchaoz/chatbot-frontend , follow the readme to use pnpm for installation, then go to http://localhost:5173/chat
 to start chatting, and user can provide feedback which helps evaluation of the performance, and we see retrieved contexts
 are also provided to user:
 
